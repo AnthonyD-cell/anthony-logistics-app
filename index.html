@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Anthony Logistics | Dispatch, Quote & PIN Verification</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Tesseract.js v5 -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; }
@@ -13,7 +12,6 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
 
-  <!-- Header -->
   <header class="bg-blue-950 border-b border-blue-800 px-4 py-4 sticky top-0 z-10 shadow-md">
     <div class="max-w-lg mx-auto flex items-center justify-between">
       <div>
@@ -26,7 +24,6 @@
 
   <main class="max-w-lg mx-auto px-4 pt-5 space-y-6">
 
-    <!-- 0A. Paste Google Maps Route Link (NEW FEATURE) -->
     <section class="bg-gradient-to-br from-blue-950 to-slate-800 rounded-xl p-4 border border-blue-700/60 shadow-lg space-y-3">
       <div>
         <h2 class="text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
@@ -46,7 +43,6 @@
       <p id="linkImportStatus" class="text-xs text-center hidden"></p>
     </section>
 
-    <!-- 0B. Facebook Screenshot OCR Scanner -->
     <section class="bg-slate-800/80 rounded-xl p-4 border border-slate-700 shadow-lg space-y-3">
       <div>
         <h2 class="text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
@@ -62,7 +58,6 @@
         <input id="screenshotInput" type="file" accept="image/*" class="hidden" onchange="processScreenshot(event)" />
       </label>
 
-      <!-- OCR Status Box -->
       <div id="ocrStatusBox" class="hidden bg-slate-900/90 rounded-lg p-3 border border-slate-700 space-y-2">
         <div class="flex items-center justify-between text-xs">
           <span id="ocrStatusText" class="text-amber-300 font-semibold">Scanning image text...</span>
@@ -74,14 +69,12 @@
       </div>
     </section>
 
-    <!-- 1. Route & Accurate Distance Calculator -->
     <section class="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-lg space-y-4">
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-bold uppercase tracking-wider text-amber-400">1. Route &amp; Accurate Distance</h2>
         <span class="text-xs text-slate-400">First 15 km included</span>
       </div>
 
-      <!-- Locations -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label class="block text-xs text-slate-300 mb-1">Start Area / Pickup</label>
@@ -95,14 +88,12 @@
         </div>
       </div>
 
-      <!-- Optional Waypoint / Stop -->
       <div>
         <label class="block text-xs text-slate-400 mb-1">Optional Stop / Waypoint (Leave blank if direct)</label>
         <input id="waypointLoc" type="text" placeholder="e.g. Gezina, Pretoria" oninput="updateMapsLink()"
           class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-400" />
       </div>
 
-      <!-- Accurate Distance Calculation Buttons -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <button type="button" id="calcDistBtn" onclick="fetchAccurateDistance()"
           class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 shadow transition">
@@ -115,7 +106,6 @@
       </div>
       <p id="distanceApiStatus" class="text-xs text-center hidden"></p>
 
-      <!-- Distance & Rate -->
       <div class="grid grid-cols-2 gap-3 pt-1">
         <div>
           <label class="block text-xs text-slate-300 mb-1">Driving Distance (km)</label>
@@ -129,7 +119,6 @@
         </div>
       </div>
 
-      <!-- Structured Items to Transport -->
       <div class="pt-3 border-t border-slate-700/80 space-y-3">
         <div class="flex items-center justify-between">
           <label class="block text-xs font-bold uppercase tracking-wider text-amber-400">2. Items to Transport</label>
@@ -224,7 +213,6 @@
       </div>
     </section>
 
-    <!-- 3. Client Details & Safety PIN Generator -->
     <section class="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-lg space-y-4">
       <h2 class="text-sm font-bold uppercase tracking-wider text-amber-400">3. Client Dispatch &amp; Safety PIN</h2>
 
@@ -247,7 +235,6 @@
       </button>
     </section>
 
-    <!-- 4. Active Trip Ticket & Bolt-Style Verification -->
     <section id="ticketSection" class="hidden bg-blue-950 rounded-xl p-4 border-2 border-amber-400 shadow-xl space-y-4">
       <div class="flex items-center justify-between border-b border-blue-800 pb-3">
         <div>
