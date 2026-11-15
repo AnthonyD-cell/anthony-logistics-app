@@ -44,7 +44,6 @@
       document.getElementById('googleMapsRouteBtn').href = url;
     }
 
-    // Google Maps Link Parser
     async function parseGoogleMapsLink() {
       const rawLink = document.getElementById('mapsLinkInput').value.trim();
       const statusEl = document.getElementById('linkImportStatus');
@@ -56,69 +55,58 @@
         return;
       }
 
-      statusEl.textContent = "Parsing link & expanding short URL if needed...";
+      statusEl.textContent = "Expanding link & extracting route...";
       statusEl.className = "text-xs text-center text-blue-300";
       statusEl.classList.remove('hidden');
 
       try {
         let targetUrl = rawLink;
-        // If it's a short URL (maps.app.goo.gl), we fetch it to resolve the full redirect URL
+
+        // Use your own Vercel backend to safely follow maps.app.goo.gl redirects
         if (rawLink.includes('maps.app.goo.gl') || rawLink.includes('goo.gl')) {
-          try {
-            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(rawLink)}`);
-            const data = await res.json();
-            if (data && data.contents) {
-              const match = data.contents.match(/href="([^"]*google\.com\/maps[^"]*)"/);
-              if (match) targetUrl = match[1];
-            }
-          } catch(e) {
-            // Fallback if shortener expansion fails
+          const res = await fetch(`/api/expand-url?url=${encodeURIComponent(rawLink)}`);
+          const data = await res.json();
+          if (data.expandedUrl) {
+            targetUrl = data.expandedUrl;
           }
         }
 
-        // Extract locations from Google Maps URL structure (/dir/Start/Waypoint/End or query parameters)
         let foundStart = "";
         let foundWaypoint = "";
         let foundEnd = "";
 
         if (targetUrl.includes('/dir/')) {
-          const parts = targetUrl.split('/dir/')[1].split('/')[0].split('?')[0].split('/');
-          // Clean up url-encoded values
-          const decodedParts = parts.map(p => decodeURIComponent(p.replace(/\+/g, ' ')));
-          
-          if (decodedParts.length >= 2) {
-            foundStart = decodedParts[0];
-            foundEnd = decodedParts[decodedParts.length - 1];
-            if (decodedParts.length === 3) {
-              foundWaypoint = decodedParts[1];
+          const afterDir = targetUrl.split('/dir/')[1].split('?')[0];
+          // Filter out empty segments and Google Maps data/coordinate metadata segments (@lat,lng or data=...)
+          const segments = afterDir
+            .split('/')
+            .filter(seg => seg && !seg.startsWith('@') && !seg.startsWith('data='))
+            .map(seg => decodeURIComponent(seg.replace(/\+/g, ' ')));
+
+          if (segments.length >= 2) {
+            foundStart = segments[0];
+            foundEnd = segments[segments.length - 1];
+            if (segments.length >= 3) {
+              foundWaypoint = segments[1];
             }
           }
         } else {
-          // Check for query parameters like ?q= or destination=
           const urlObj = new URL(targetUrl.includes('http') ? targetUrl : 'https://' + targetUrl);
           const qParam = urlObj.searchParams.get('q') || urlObj.searchParams.get('destination');
-          if (qParam) {
-            foundEnd = qParam;
-          }
+          if (qParam) foundEnd = qParam;
         }
 
         if (foundStart || foundEnd) {
           if (foundStart) document.getElementById('startLoc').value = foundStart;
-          if (foundWaypoint) {
-            document.getElementById('waypointLoc').value = foundWaypoint;
-          } else {
-            document.getElementById('waypointLoc').value = "";
-          }
+          document.getElementById('waypointLoc').value = foundWaypoint || "";
           if (foundEnd) document.getElementById('endLoc').value = foundEnd;
 
           updateMapsLink();
-          statusEl.textContent = "✅ Link successfully parsed! Calculating accurate distance...";
+          statusEl.textContent = "✅ Route imported! Calculating driving distance...";
           statusEl.className = "text-xs text-center text-emerald-400 font-semibold";
-
-          // Automatically trigger distance calculation
           await fetchAccurateDistance();
         } else {
-          throw new Error("Could not extract locations from this link. Try pasting a standard Google Maps directions URL.");
+          throw new Error("Could not find pickup/drop-off points in that link.");
         }
       } catch (err) {
         statusEl.textContent = `❌ ${err.message}`;
@@ -126,7 +114,6 @@
       }
     }
 
-    // Geocode address using Nominatim
     async function geocodeLocation(query) {
       const coordMatch = query.match(/(-?\d{1,2}\.\d{3,8})\s*,\s*(-?\d{1,3}\.\d{3,8})/);
       if (coordMatch) {
@@ -212,7 +199,6 @@
       document.getElementById('totalQuote').textContent = `R ${currentTotal.toFixed(2)}`;
     }
 
-    // Screenshot Scanner fallback
     async function processScreenshot(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -296,4 +282,3 @@
 
     updateMapsLink();
     calculateQuote();
-  
