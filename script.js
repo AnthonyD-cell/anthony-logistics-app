@@ -62,7 +62,6 @@
       try {
         let targetUrl = rawLink;
 
-        // Use your own Vercel backend to safely follow maps.app.goo.gl redirects
         if (rawLink.includes('maps.app.goo.gl') || rawLink.includes('goo.gl')) {
           const res = await fetch(`/api/expand-url?url=${encodeURIComponent(rawLink)}`);
           const data = await res.json();
@@ -77,7 +76,6 @@
 
         if (targetUrl.includes('/dir/')) {
           const afterDir = targetUrl.split('/dir/')[1].split('?')[0];
-          // Filter out empty segments and Google Maps data/coordinate metadata segments (@lat,lng or data=...)
           const segments = afterDir
             .split('/')
             .filter(seg => seg && !seg.startsWith('@') && !seg.startsWith('data='))
@@ -120,17 +118,36 @@
         return { lat: parseFloat(coordMatch[1]), lon: parseFloat(coordMatch[2]) };
       }
 
-      const searchQuery = query.toLowerCase().includes('south africa') ? query : `${query}, Gauteng, South Africa`;
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(searchQuery)}`;
-      const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-      const data = await res.json();
+      let cleanedQuery = query
+        .replace(/[^,\n]+-\s*Cosmopolitan Projects,?/gi, '') // Removes "Diamond City - Cosmopolitan Projects"
+        .replace(/Cosmopolitan Projects/gi, '')
+        .replace(/,\s*\d{4}\b/g, '') // Removes postal codes like 0122 if they cause lookup friction
+        .trim();
+
+      let searchQuery = cleanedQuery.toLowerCase().includes('south africa') ? cleanedQuery : `${cleanedQuery}, South Africa`;
+      let url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(searchQuery)}`;
+      let res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+      let data = await res.json();
+
       if (data && data.length > 0) {
         return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
       }
-      throw new Error(`Could not locate "${query}". Check address name.`);
+
+      const parts = query.split(',').map(p => p.trim());
+      if (parts.length >= 2) {
+        // Take the last two meaningful parts (e.g., Estate/Street + Suburb)
+        const fallbackQuery = `${parts[parts.length - 3] || parts[0]}, Mamelodi, South Africa`;
+        url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(fallbackQuery)}`;
+        res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+        data = await res.json();
+        if (data && data.length > 0) {
+          return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+        }
+      }
+
+      throw new Error(`Could not locate "${query}". Try shortening the address to just the estate or street name.`);
     }
 
-    // Calculate real road driving distance via OSRM
     async function fetchAccurateDistance() {
       const startVal = document.getElementById('startLoc').value.trim();
       const waypointVal = document.getElementById('waypointLoc').value.trim();
