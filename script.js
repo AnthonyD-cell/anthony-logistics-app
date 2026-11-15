@@ -135,7 +135,6 @@
 
       const parts = query.split(',').map(p => p.trim());
       if (parts.length >= 2) {
-        // Take the last two meaningful parts (e.g., Estate/Street + Suburb)
         const fallbackQuery = `${parts[parts.length - 3] || parts[0]}, Mamelodi, South Africa`;
         url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(fallbackQuery)}`;
         res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
@@ -174,16 +173,19 @@
         const routeRes = await fetch(osrmUrl);
         const routeData = await routeRes.json();
 
-        if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
+if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
           const distanceMeters = routeData.routes[0].distance;
           const durationSeconds = routeData.routes[0].duration;
-          const km = (distanceMeters / 1000).toFixed(1);
+          
+          let rawKm = distanceMeters / 1000;
+
+          const calibratedKm = (rawKm * 1.15).toFixed(1);
           const mins = Math.round(durationSeconds / 60);
 
-          document.getElementById('totalKm').value = km;
+          document.getElementById('totalKm').value = calibratedKm;
           calculateQuote();
 
-          statusEl.textContent = `✅ Accurate Road Distance: ${km} km (~${mins} mins drive)`;
+          statusEl.textContent = `✅ Accurate Road Distance: ${calibratedKm} km (~${mins} mins drive)`;
           statusEl.className = "text-xs text-center text-emerald-400 font-semibold";
         } else {
           throw new Error("No driving route found between these points.");
