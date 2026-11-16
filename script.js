@@ -55,18 +55,21 @@
         return;
       }
 
-      statusEl.textContent = "Expanding link & extracting route...";
+      statusEl.textContent = "Extracting route from Google Maps link...";
       statusEl.className = "text-xs text-center text-blue-300";
       statusEl.classList.remove('hidden');
 
       try {
         let targetUrl = rawLink;
 
+        // Expand short links if /api/expand-url is deployed
         if (rawLink.includes('maps.app.goo.gl') || rawLink.includes('goo.gl')) {
-          const res = await fetch(`/api/expand-url?url=${encodeURIComponent(rawLink)}`);
-          const data = await res.json();
-          if (data.expandedUrl) {
-            targetUrl = data.expandedUrl;
+          try {
+            const res = await fetch(`/api/expand-url?url=${encodeURIComponent(rawLink)}`);
+            const data = await res.json();
+            if (data.expandedUrl) targetUrl = data.expandedUrl;
+          } catch (e) {
+            // Continue with original URL if endpoint isn't present
           }
         }
 
@@ -76,22 +79,24 @@
 
         if (targetUrl.includes('/dir/')) {
           const afterDir = targetUrl.split('/dir/')[1].split('?')[0];
-          const segments = afterDir
+
+          // Strip out @viewport coordinates and data=!3m1... metadata blocks
+          const cleanSegments = afterDir
             .split('/')
             .filter(seg => seg && !seg.startsWith('@') && !seg.startsWith('data='))
-            .map(seg => decodeURIComponent(seg.replace(/\+/g, ' ')));
+            .map(seg => decodeURIComponent(seg.replace(/\+/g, ' ')).trim());
 
-          if (segments.length >= 2) {
-            foundStart = segments[0];
-            foundEnd = segments[segments.length - 1];
-            if (segments.length >= 3) {
-              foundWaypoint = segments[1];
+          if (cleanSegments.length >= 2) {
+            foundStart = cleanSegments[0];
+            foundEnd = cleanSegments[cleanSegments.length - 1];
+            if (cleanSegments.length >= 3) {
+              foundWaypoint = cleanSegments[1];
             }
           }
         } else {
           const urlObj = new URL(targetUrl.includes('http') ? targetUrl : 'https://' + targetUrl);
           const qParam = urlObj.searchParams.get('q') || urlObj.searchParams.get('destination');
-          if (qParam) foundEnd = qParam;
+          if (qParam) foundEnd = decodeURIComponent(qParam.replace(/\+/g, ' ')).trim();
         }
 
         if (foundStart || foundEnd) {
@@ -100,15 +105,55 @@
           if (foundEnd) document.getElementById('endLoc').value = foundEnd;
 
           updateMapsLink();
+
+          // Extract exact GPS coordinates from Google Maps data=!2d<lng>!2d<lat> pairs if present
+          const coordPairs = [...targetUrl.matchAll(/!2d(-?\d+\.\d+)!2d(-?\d+\.\d+)/g)];
+          if (coordPairs.length >= 2) {
+            const startCoords = `${coordPairs[0][2]}, ${coordPairs[0][1]}`;
+            const endCoords = `${coordPairs[coordPairs.length - 1][2]}, ${coordPairs[coordPairs.length - 1][1]}`;
+
+            statusEl.textContent = "✅ Exact GPS coordinates extracted! Calculating driving distance...";
+            statusEl.className = "text-xs text-center text-emerald-400 font-semibold";
+            await calculateDistanceFromCoords(startCoords, endCoords);
+            return;
+          }
+
           statusEl.textContent = "✅ Route imported! Calculating driving distance...";
           statusEl.className = "text-xs text-center text-emerald-400 font-semibold";
           await fetchAccurateDistance();
         } else {
-          throw new Error("Could not find pickup/drop-off points in that link.");
+          throw new Error("Could not extract locations from that link.");
         }
       } catch (err) {
         statusEl.textContent = `❌ ${err.message}`;
         statusEl.className = "text-xs text-center text-rose-400";
+      }
+    }
+
+    // Direct OSRM routing using exact GPS coordinates from the Google Maps URL
+    async function calculateDistanceFromCoords(startCoordStr, endCoordStr) {
+      const statusEl = document.getElementById('distanceApiStatus');
+      try {
+        const p1 = await geocodeLocation(startCoordStr);
+        const p2 = await geocodeLocation(endCoordStr);
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${p1.lon},${p1.lat};${p2.lon},${p2.lat}?overview=false`;
+        const routeRes = await fetch(osrmUrl);
+        const routeData = await routeRes.json();
+
+        if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
+          const rawKm = routeData.routes[0].distance / 1000;
+          const calibratedKm = (rawKm * 1.15).toFixed(1);
+          const mins = Math.round(routeData.routes[0].duration / 60);
+
+          document.getElementById('totalKm').value = calibratedKm;
+          calculateQuote();
+
+          statusEl.textContent = `✅ Accurate Road Distance: ${calibratedKm} km (~${mins} mins drive)`;
+          statusEl.className = "text-xs text-center text-emerald-400 font-semibold";
+          statusEl.classList.remove('hidden');
+        }
+      } catch (e) {
+        await fetchAccurateDistance();
       }
     }
 
