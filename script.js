@@ -1,5 +1,4 @@
-
-    const BASE_FEE = 600;
+const BASE_FEE = 600;
     const INCLUDED_KM = 15;
     let currentTotal = 600;
     let activePin = "";
@@ -62,6 +61,7 @@
       try {
         let targetUrl = rawLink;
 
+        // Expand short links if /api/expand-url is deployed
         if (rawLink.includes('maps.app.goo.gl') || rawLink.includes('goo.gl')) {
           try {
             const res = await fetch(`/api/expand-url?url=${encodeURIComponent(rawLink)}`);
@@ -105,6 +105,7 @@
 
           updateMapsLink();
 
+          // Extract exact GPS coordinates from Google Maps data=!2d<lng>!2d<lat> pairs if present
           const coordPairs = [...targetUrl.matchAll(/!2d(-?\d+\.\d+)!2d(-?\d+\.\d+)/g)];
           if (coordPairs.length >= 2) {
             const startCoords = `${coordPairs[0][2]}, ${coordPairs[0][1]}`;
@@ -128,6 +129,7 @@
       }
     }
 
+    // Direct OSRM routing using exact GPS coordinates from the Google Maps URL
     async function calculateDistanceFromCoords(startCoordStr, endCoordStr) {
       const statusEl = document.getElementById('distanceApiStatus');
       try {
@@ -161,9 +163,9 @@
       }
 
       let cleanedQuery = query
-        .replace(/[^,\n]+-\s*Cosmopolitan Projects,?/gi, '') // Removes "Diamond City - Cosmopolitan Projects"
+        .replace(/[^,\n]+-\s*Cosmopolitan Projects,?/gi, '') // Removes developer prefixes
         .replace(/Cosmopolitan Projects/gi, '')
-        .replace(/,\s*\d{4}\b/g, '') // Removes postal codes like 0122 if they cause lookup friction
+        .replace(/,\s*\d{4}\b/g, '') // Removes postal codes
         .trim();
 
       let searchQuery = cleanedQuery.toLowerCase().includes('south africa') ? cleanedQuery : `${cleanedQuery}, South Africa`;
@@ -177,7 +179,7 @@
 
       const parts = query.split(',').map(p => p.trim());
       if (parts.length >= 2) {
-        const fallbackQuery = `${parts[parts.length - 3] || parts[0]}, Mamelodi, South Africa`;
+        const fallbackQuery = `${parts[parts.length - 3] || parts[0]}, Pretoria, South Africa`;
         url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(fallbackQuery)}`;
         res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
         data = await res.json();
@@ -215,13 +217,12 @@
         const routeRes = await fetch(osrmUrl);
         const routeData = await routeRes.json();
 
-if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
+        if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
           const distanceMeters = routeData.routes[0].distance;
           const durationSeconds = routeData.routes[0].duration;
           
           let rawKm = distanceMeters / 1000;
-
-          const calibratedKm = (rawKm * 1.15).toFixed(1);
+          const calibratedKm = (rawKm * 1.15).toFixed(1); // 1.15x Gauteng traffic calibration
           const mins = Math.round(durationSeconds / 60);
 
           document.getElementById('totalKm').value = calibratedKm;
@@ -260,69 +261,6 @@ if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) 
       document.getElementById('totalQuote').textContent = `R ${currentTotal.toFixed(2)}`;
     }
 
-    async function processScreenshot(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      
-      const statusBox = document.getElementById('ocrStatusBox');
-      const statusText = document.getElementById('ocrStatusText');
-      statusBox.classList.remove('hidden');
-      statusText.textContent = "Scanning screenshot text...";
-      statusText.className = "text-xs text-center text-blue-300";
-
-      try {
-        const worker = await Tesseract.createWorker('eng', 1, { workerBlobURL: true });
-        const { data: { text } } = await worker.recognize(file);
-        await worker.terminate();
-
-        // Clean and split lines of text found in the image
-        const lines = text.split('\n')
-          .map(l => l.trim())
-          .filter(l => l.length > 3 && !l.toLowerCase().includes('battery') && !l.toLowerCase().includes('wifi') && !l.toLowerCase().includes('search'));
-
-        let pickup = "";
-        let dropoff = "";
-
-        // Smart keyword detection for Facebook chat screenshots
-        for (let line of lines) {
-          const lower = line.toLowerCase();
-          if ((lower.includes('from') || lower.includes('pickup') || lower.includes('collect')) && !pickup) {
-            pickup = line.replace(/from:|pickup:|collect from:/gi, '').trim();
-          } else if ((lower.includes('to') || lower.includes('drop') || lower.includes('deliver')) && !dropoff) {
-            dropoff = line.replace(/to:|drop off:|deliver to:/gi, '').trim();
-          }
-        }
-
-        // Fallback heuristic: if no keywords found, take first and last meaningful lines
-        if (!pickup && lines.length > 0) {
-          pickup = lines[0];
-        }
-        if (!dropoff && lines.length > 1) {
-          dropoff = lines[lines.length - 1];
-        }
-
-        if (pickup || dropoff) {
-          if (pickup) document.getElementById('startLoc').value = pickup;
-          if (dropoff) document.getElementById('endLoc').value = dropoff;
-          
-          updateMapsLink();
-          statusText.textContent = "✅ Scan complete! Route extracted successfully.";
-          statusText.className = "text-xs text-center text-emerald-400 font-semibold";
-
-          // Automatically trigger accurate distance calculation if both points exist
-          if (document.getElementById('startLoc').value && document.getElementById('endLoc').value) {
-            await fetchAccurateDistance();
-          }
-        } else {
-          statusText.textContent = "⚠️ Could not detect locations clearly. Try typing them in.";
-          statusText.className = "text-xs text-center text-amber-400";
-        }
-      } catch (e) {
-        statusText.textContent = "❌ Scan failed. Try pasting the Maps link instead.";
-        statusText.className = "text-xs text-center text-rose-400";
-      }
-    }
-    
     function generateTripTicket() {
       const start = document.getElementById('startLoc').value.trim() || "Pretoria";
       const waypoint = document.getElementById('waypointLoc').value.trim();
